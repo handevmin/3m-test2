@@ -736,10 +736,9 @@ const M3_PRODUCTS = [
 ];
 
 // DOM 요소들
-let videoElement = null;
+let cameraInput = null;
 let capturedImage = null;
-let startCameraBtn = null;
-let captureBtn = null;
+let takePhotoBtn = null;
 let analyzeBtn = null;
 let resetBtn = null;
 let loading = null;
@@ -748,7 +747,6 @@ let resultsTableBody = null;
 let noResults = null;
 let errorMessage = null;
 
-let stream = null;
 let capturedImageData = null;
 
 // 페이지 로드 완료 시 초기화
@@ -758,10 +756,9 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initializeElements() {
-    videoElement = document.getElementById('videoElement');
+    cameraInput = document.getElementById('cameraInput');
     capturedImage = document.getElementById('capturedImage');
-    startCameraBtn = document.getElementById('startCameraBtn');
-    captureBtn = document.getElementById('captureBtn');
+    takePhotoBtn = document.getElementById('takePhotoBtn');
     analyzeBtn = document.getElementById('analyzeBtn');
     resetBtn = document.getElementById('resetBtn');
     loading = document.querySelector('.loading');
@@ -772,107 +769,51 @@ function initializeElements() {
 }
 
 function setupEventListeners() {
-    startCameraBtn.addEventListener('click', startCamera);
-    captureBtn.addEventListener('click', captureImage);
+    takePhotoBtn.addEventListener('click', takePhoto);
+    cameraInput.addEventListener('change', handlePhotoCapture);
     analyzeBtn.addEventListener('click', analyzeImage);
     resetBtn.addEventListener('click', resetApp);
 }
 
-async function startCamera() {
-    try {
-        hideError();
-        console.log('카메라 시작 요청...');
-        
-        // 먼저 카메라 사용 가능 여부 확인
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            throw new Error('이 브라우저는 카메라를 지원하지 않습니다.');
-        }
-        
-        const constraints = {
-            video: {
-                facingMode: 'environment', // 후면 카메라 우선
-                width: { ideal: 1280, min: 640 },
-                height: { ideal: 720, min: 480 }
-            }
-        };
-
-        console.log('카메라 권한 요청 중...');
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-        console.log('카메라 스트림 획득 성공');
-        
-        videoElement.srcObject = stream;
-        
-        // 비디오 로드 완료 대기
-        await new Promise((resolve) => {
-            videoElement.onloadedmetadata = resolve;
-        });
-        
-        videoElement.style.display = 'block';
-        captureBtn.style.display = 'inline-block';
-        startCameraBtn.style.display = 'none';
-        
-        console.log('카메라 UI 업데이트 완료');
-        
-    } catch (error) {
-        console.error('카메라 접근 오류:', error);
-        let errorMsg = '카메라에 접근할 수 없습니다. ';
-        
-        if (error.name === 'NotAllowedError') {
-            errorMsg += '카메라 권한을 허용해주세요.';
-        } else if (error.name === 'NotFoundError') {
-            errorMsg += '카메라를 찾을 수 없습니다.';
-        } else if (error.name === 'NotSupportedError') {
-            errorMsg += '이 브라우저는 카메라를 지원하지 않습니다.';
-        } else {
-            errorMsg += error.message;
-        }
-        
-        showError(errorMsg);
-    }
+function takePhoto() {
+    console.log('카메라 실행...');
+    hideError();
+    cameraInput.click(); // 핸드폰 카메라 앱 실행
 }
 
-function captureImage() {
-    try {
-        hideError();
-        console.log('사진 촬영 시작...');
+function handlePhotoCapture(event) {
+    const file = event.target.files[0];
+    
+    if (!file) {
+        console.log('사진 촬영 취소됨');
+        return;
+    }
+    
+    console.log('사진 선택됨:', file.name, file.size, 'bytes');
+    
+    const reader = new FileReader();
+    
+    reader.onload = function(e) {
+        capturedImageData = e.target.result;
+        console.log('이미지 로드 완료, 크기:', capturedImageData.length, 'characters');
         
-        if (!videoElement.videoWidth || !videoElement.videoHeight) {
-            throw new Error('비디오가 준비되지 않았습니다. 잠시 후 다시 시도해주세요.');
-        }
-        
-        const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d');
-        
-        canvas.width = videoElement.videoWidth;
-        canvas.height = videoElement.videoHeight;
-        
-        console.log('캔버스 크기:', canvas.width, 'x', canvas.height);
-        
-        context.drawImage(videoElement, 0, 0);
-        
-        capturedImageData = canvas.toDataURL('image/jpeg', 0.8);
-        console.log('이미지 캡처 완료, 크기:', capturedImageData.length, 'characters');
-        
+        // 촬영된 이미지 미리보기 표시
         capturedImage.src = capturedImageData;
         capturedImage.style.display = 'block';
         
-        videoElement.style.display = 'none';
-        captureBtn.style.display = 'none';
+        // UI 업데이트: 분석 버튼 활성화
         analyzeBtn.style.display = 'inline-block';
         resetBtn.style.display = 'inline-block';
         
-        // 카메라 스트림 정지
-        if (stream) {
-            stream.getTracks().forEach(track => track.stop());
-            console.log('카메라 스트림 정지됨');
-        }
-        
-        console.log('촬영 완료 - 분석 버튼 활성화됨');
-        
-    } catch (error) {
-        console.error('이미지 캡처 오류:', error);
-        showError(`이미지 캡처 중 오류가 발생했습니다: ${error.message}`);
-    }
+        console.log('사진 촬영 완료 - 분석 버튼 활성화됨');
+    };
+    
+    reader.onerror = function(error) {
+        console.error('이미지 로드 오류:', error);
+        showError('이미지를 불러오는데 실패했습니다.');
+    };
+    
+    reader.readAsDataURL(file);
 }
 
 async function analyzeImage() {
@@ -1056,29 +997,26 @@ function parseNonTableResults(analysisResult) {
 }
 
 function resetApp() {
-    // 스트림 정리
-    if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-        stream = null;
-    }
+    console.log('앱 초기화 시작...');
     
     // UI 초기화
-    videoElement.style.display = 'none';
     capturedImage.style.display = 'none';
-    
-    startCameraBtn.style.display = 'inline-block';
-    captureBtn.style.display = 'none';
     analyzeBtn.style.display = 'none';
     resetBtn.style.display = 'none';
     
     resultsSection.style.display = 'none';
     noResults.style.display = 'none';
     
+    // 파일 input 초기화
+    cameraInput.value = '';
+    
     // 데이터 초기화
     capturedImageData = null;
     
     hideError();
     showLoading(false);
+    
+    console.log('앱 초기화 완료');
 }
 
 function showLoading(show) {

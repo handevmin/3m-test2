@@ -744,6 +744,7 @@ let uploadFileBtn = null;
 let analyzeBtn = null;
 let resetBtn = null;
 let loading = null;
+let loadingMessage = null;
 let resultsSection = null;
 let resultsTableBody = null;
 let noResults = null;
@@ -766,6 +767,7 @@ function initializeElements() {
     analyzeBtn = document.getElementById('analyzeBtn');
     resetBtn = document.getElementById('resetBtn');
     loading = document.querySelector('.loading');
+    loadingMessage = document.getElementById('loadingMessage');
     resultsSection = document.getElementById('resultsSection');
     resultsTableBody = document.getElementById('resultsTableBody');
     noResults = document.getElementById('noResults');
@@ -804,29 +806,107 @@ function handlePhotoCapture(event) {
     
     console.log(`${inputSource}으로 이미지 선택됨:`, file.name, file.size, 'bytes');
     
+    // 파일 크기가 너무 큰 경우 압축 필요 알림
+    if (file.size > 3 * 1024 * 1024) { // 3MB 이상
+        console.log('큰 이미지 감지 - 압축 진행');
+        showLoadingWithMessage('이미지를 최적화하는 중입니다...');
+    }
+    
+    // 이미지 압축 및 리사이즈
+    compressAndResizeImage(file, inputSource);
+}
+
+function compressAndResizeImage(file, inputSource) {
     const reader = new FileReader();
     
     reader.onload = function(e) {
-        capturedImageData = e.target.result;
-        console.log('이미지 로드 완료, 크기:', capturedImageData.length, 'characters');
+        const img = new Image();
         
-        // 촬영된 이미지 미리보기 표시
-        capturedImage.src = capturedImageData;
-        capturedImage.style.display = 'block';
+        img.onload = function() {
+            console.log(`원본 이미지 크기: ${img.width}x${img.height}`);
+            
+            // 최대 크기 설정 (GPT 분석에 충분한 해상도)
+            const maxWidth = 1920;
+            const maxHeight = 1920;
+            const maxFileSize = 3 * 1024 * 1024; // 3MB
+            
+            let { width, height } = calculateNewDimensions(img.width, img.height, maxWidth, maxHeight);
+            
+            console.log(`리사이즈된 크기: ${width}x${height}`);
+            
+            // Canvas로 이미지 리사이즈 및 압축
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = width;
+            canvas.height = height;
+            
+            // 고품질 리샘플링
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            
+            // 이미지 그리기
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // 적절한 압축 품질 찾기
+            let quality = 0.8;
+            let compressedData;
+            
+            do {
+                compressedData = canvas.toDataURL('image/jpeg', quality);
+                console.log(`압축 품질 ${quality}: ${compressedData.length} characters`);
+                
+                if (compressedData.length < maxFileSize * 1.37) { // base64는 약 37% 더 큼
+                    break;
+                }
+                
+                quality -= 0.1;
+            } while (quality > 0.3);
+            
+            capturedImageData = compressedData;
+            console.log(`최종 압축 완료 - 품질: ${quality}, 크기: ${capturedImageData.length} characters`);
+            
+            // 미리보기 표시
+            capturedImage.src = capturedImageData;
+            capturedImage.style.display = 'block';
+            
+            // UI 업데이트
+            analyzeBtn.style.display = 'inline-block';
+            resetBtn.style.display = 'inline-block';
+            
+            showLoading(false);
+            console.log(`${inputSource} 완료 - 분석 버튼 활성화됨`);
+        };
         
-        // UI 업데이트: 분석 버튼 활성화
-        analyzeBtn.style.display = 'inline-block';
-        resetBtn.style.display = 'inline-block';
+        img.onerror = function(error) {
+            console.error('이미지 로드 오류:', error);
+            showError('이미지를 처리하는데 실패했습니다.');
+            showLoading(false);
+        };
         
-        console.log('사진 촬영 완료 - 분석 버튼 활성화됨');
+        img.src = e.target.result;
     };
     
     reader.onerror = function(error) {
-        console.error('이미지 로드 오류:', error);
-        showError('이미지를 불러오는데 실패했습니다.');
+        console.error('파일 읽기 오류:', error);
+        showError('파일을 읽는데 실패했습니다.');
+        showLoading(false);
     };
     
     reader.readAsDataURL(file);
+}
+
+function calculateNewDimensions(originalWidth, originalHeight, maxWidth, maxHeight) {
+    let width = originalWidth;
+    let height = originalHeight;
+    
+    // 최대 크기를 초과하는 경우에만 리사이즈
+    if (width > maxWidth || height > maxHeight) {
+        const ratio = Math.min(maxWidth / width, maxHeight / height);
+        width = Math.floor(width * ratio);
+        height = Math.floor(height * ratio);
+    }
+    
+    return { width, height };
 }
 
 async function analyzeImage() {
@@ -842,6 +922,8 @@ async function analyzeImage() {
         console.log('분석 시작 - API 호출 준비 중...');
         console.log('전송할 이미지 크기:', capturedImageData.length, 'characters');
         console.log('이미지 타입:', capturedImageData.substring(0, 50));
+        
+        showLoadingWithMessage('3M 제품을 분석하는 중입니다...');
         
         const prompt = createAnalysisPrompt();
         
@@ -1126,6 +1208,15 @@ function showLoading(show) {
         loading.style.display = 'none';
         analyzeBtn.disabled = false;
     }
+}
+
+function showLoadingWithMessage(message) {
+    if (loadingMessage) {
+        loadingMessage.textContent = message;
+    }
+    loading.style.display = 'block';
+    analyzeBtn.disabled = true;
+    console.log('로딩 표시:', message);
 }
 
 function showError(message) {

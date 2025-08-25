@@ -900,31 +900,84 @@ function displayResults(analysisResult) {
     console.log('결과 표시 시작:', analysisResult);
     showLoading(false);
     
-    // 결과 섹션 먼저 숨김
+    // 결과 섹션 초기화
     resultsSection.style.display = 'none';
     noResults.style.display = 'none';
+    resultsTableBody.innerHTML = '';
     
+    // 원본 응답을 항상 화면에 표시하기 위한 원시 결과 섹션 생성
+    let rawResultsDiv = document.getElementById('rawResults');
+    if (!rawResultsDiv) {
+        rawResultsDiv = document.createElement('div');
+        rawResultsDiv.id = 'rawResults';
+        rawResultsDiv.style.cssText = `
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border: 1px solid #dee2e6;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            line-height: 1.4;
+            max-height: 300px;
+            overflow-y: auto;
+        `;
+        document.querySelector('.main-content').appendChild(rawResultsDiv);
+    }
+    
+    // 원본 응답 표시
+    rawResultsDiv.innerHTML = `<strong>AI 분석 결과:</strong><br/><br/>${analysisResult}`;
+    rawResultsDiv.style.display = 'block';
+    
+    // "제품을 찾을 수 없습니다" 체크
     if (analysisResult.includes('3M 제품을 찾을 수 없습니다') || 
         analysisResult.includes('분석 결과: 3M 제품을 찾을 수 없습니다')) {
-        console.log('제품을 찾을 수 없음 - noResults 표시');
-        noResults.style.display = 'block';
+        console.log('제품을 찾을 수 없음');
+        
+        // noResults 섹션에 더 자세한 정보 표시
+        const noResultsDiv = document.getElementById('noResults');
+        noResultsDiv.innerHTML = `
+            <h4>3M 제품을 찾을 수 없습니다</h4>
+            <p>촬영된 이미지에서 3M 제품을 식별할 수 없었습니다.</p>
+            <ul style="text-align: left; margin-top: 10px;">
+                <li>제품 포장에 3M 또는 Scotch-Brite 로고가 명확히 보이는지 확인해주세요</li>
+                <li>조명이 충분한 곳에서 다시 촬영해보세요</li>
+                <li>Post-it, 스카치테이프 등 3M 제품들을 시도해보세요</li>
+            </ul>
+        `;
+        noResultsDiv.style.display = 'block';
         return;
     }
     
-    // 테이블 형식의 결과 파싱
+    // 테이블 형식 파싱 시도
+    const success = tryParseTableResults(analysisResult);
+    if (success) {
+        console.log('테이블 파싱 성공');
+        resultsSection.style.display = 'block';
+        return;
+    }
+    
+    // SKU 패턴 파싱 시도
+    const skuSuccess = tryParseSKUResults(analysisResult);
+    if (skuSuccess) {
+        console.log('SKU 파싱 성공');
+        resultsSection.style.display = 'block';
+        return;
+    }
+    
+    // 파싱 실패 시에도 원본 결과는 이미 표시되어 있음
+    console.log('구조화된 파싱 실패 - 원본 텍스트 표시됨');
+}
+
+function tryParseTableResults(analysisResult) {
     const tableMatch = analysisResult.match(/\|[\s\S]*?\|/g);
     
     if (!tableMatch || tableMatch.length < 2) {
-        // 테이블 형식이 아닌 경우 일반 텍스트로 파싱 시도
-        parseNonTableResults(analysisResult);
-        return;
+        return false;
     }
     
-    // 헤더 제외하고 데이터 행들 파싱
-    const dataRows = tableMatch.slice(2); // 첫 번째는 헤더, 두 번째는 구분선
-    
-    resultsTableBody.innerHTML = '';
-    
+    const dataRows = tableMatch.slice(2); // 헤더와 구분선 제외
     let hasValidResults = false;
     
     dataRows.forEach(row => {
@@ -944,13 +997,39 @@ function displayResults(analysisResult) {
         }
     });
     
-    if (hasValidResults) {
-        resultsSection.style.display = 'block';
-        noResults.style.display = 'none';
-    } else {
-        noResults.style.display = 'block';
-        resultsSection.style.display = 'none';
+    return hasValidResults;
+}
+
+function tryParseSKUResults(analysisResult) {
+    const skuPattern = /SKU[:\s]*(\d+)/gi;
+    const matches = analysisResult.matchAll(skuPattern);
+    let hasValidResults = false;
+    
+    for (const match of matches) {
+        const sku = match[1];
+        const product = M3_PRODUCTS.find(p => p.SKU === sku);
+        
+        if (product) {
+            const tr = document.createElement('tr');
+            
+            const tdInfo = document.createElement('td');
+            tdInfo.textContent = '이미지에서 식별된 제품';
+            tr.appendChild(tdInfo);
+            
+            const tdName = document.createElement('td');
+            tdName.textContent = product.제품명;
+            tr.appendChild(tdName);
+            
+            const tdSku = document.createElement('td');
+            tdSku.textContent = product.SKU;
+            tr.appendChild(tdSku);
+            
+            resultsTableBody.appendChild(tr);
+            hasValidResults = true;
+        }
     }
+    
+    return hasValidResults;
 }
 
 function parseNonTableResults(analysisResult) {
@@ -1007,6 +1086,12 @@ function resetApp() {
     resultsSection.style.display = 'none';
     noResults.style.display = 'none';
     
+    // rawResults 요소도 숨기기
+    const rawResultsDiv = document.getElementById('rawResults');
+    if (rawResultsDiv) {
+        rawResultsDiv.style.display = 'none';
+    }
+    
     // 파일 input 초기화
     cameraInput.value = '';
     
@@ -1030,8 +1115,18 @@ function showLoading(show) {
 }
 
 function showError(message) {
-    errorMessage.textContent = message;
+    console.error('에러 표시:', message);
+    
+    errorMessage.innerHTML = `
+        <strong>오류 발생</strong><br/>
+        ${message}
+        <br/><br/>
+        <small>문제가 지속되면 페이지를 새로고침한 후 다시 시도해주세요.</small>
+    `;
     errorMessage.style.display = 'block';
+    
+    // 에러 메시지를 페이지 상단으로 스크롤
+    errorMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function hideError() {

@@ -847,6 +847,8 @@ async function analyzeImage() {
         showLoading(true);
         
         console.log('분석 시작 - API 호출 준비 중...');
+        console.log('전송할 이미지 크기:', capturedImageData.length, 'characters');
+        console.log('이미지 타입:', capturedImageData.substring(0, 50));
         
         const prompt = createAnalysisPrompt();
         
@@ -894,7 +896,7 @@ function createAnalysisPrompt() {
     return `당신은 세계최고의 전문 사진 분석가입니다. 사진속에서 '3M제품리스트'에 있는 제품이 있는지 찾아주세요. 그리고 아래와 같은 Flow만을 참고해서 작업해주세요.
 
 Flow:
-1. 사진에서 제품을 찾을때는 사진속에 있는 3M 제품을 최대한 누락없이 찾아주세요. 포장/색상/수량이 다르면 각각 별도의 제품으로 인식합니다. 제품 포장에 "3M" 또는 "Scotch-Brite" 등의 정확한 브랜드 로고가 명확히 표시되어 있어야 합니다.
+1. 사진에서 제품을 찾을때는 사진속에 있는 3M 제품을 최대한 누락없이 찾아주세요. 포장/색상/수량이 다르면 각각 별도의 제품으로 인식합니다. "3M" 또는 "Scotch-Brite" 등의 브랜드 로고나, Post-it, 스카치 테이프 등 3M 계열 제품으로 보이는 모든 제품을 포함합니다. 로고가 불분명해도 제품 형태와 특징으로 3M 제품으로 추정되면 분석에 포함하세요.
 
 2. 사진속에서 찾은 각각의 제품들에 대해서 SKU를 매칭해주세요. 만약 사진에서 찾은 제품 한개에 대해 매칭 가능한 유사제품들이 여러개 있을 경우, 가장 가까운 제품의 SKU를 선택해주세요.
 

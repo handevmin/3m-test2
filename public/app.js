@@ -781,31 +781,64 @@ function setupEventListeners() {
 async function startCamera() {
     try {
         hideError();
+        console.log('카메라 시작 요청...');
+        
+        // 먼저 카메라 사용 가능 여부 확인
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error('이 브라우저는 카메라를 지원하지 않습니다.');
+        }
         
         const constraints = {
             video: {
-                facingMode: 'environment', // 후면 카메라 사용
-                width: { ideal: 1280 },
-                height: { ideal: 720 }
+                facingMode: 'environment', // 후면 카메라 우선
+                width: { ideal: 1280, min: 640 },
+                height: { ideal: 720, min: 480 }
             }
         };
 
+        console.log('카메라 권한 요청 중...');
         stream = await navigator.mediaDevices.getUserMedia(constraints);
+        console.log('카메라 스트림 획득 성공');
+        
         videoElement.srcObject = stream;
+        
+        // 비디오 로드 완료 대기
+        await new Promise((resolve) => {
+            videoElement.onloadedmetadata = resolve;
+        });
         
         videoElement.style.display = 'block';
         captureBtn.style.display = 'inline-block';
         startCameraBtn.style.display = 'none';
         
+        console.log('카메라 UI 업데이트 완료');
+        
     } catch (error) {
         console.error('카메라 접근 오류:', error);
-        showError('카메라에 접근할 수 없습니다. 브라우저에서 카메라 권한을 허용해주세요.');
+        let errorMsg = '카메라에 접근할 수 없습니다. ';
+        
+        if (error.name === 'NotAllowedError') {
+            errorMsg += '카메라 권한을 허용해주세요.';
+        } else if (error.name === 'NotFoundError') {
+            errorMsg += '카메라를 찾을 수 없습니다.';
+        } else if (error.name === 'NotSupportedError') {
+            errorMsg += '이 브라우저는 카메라를 지원하지 않습니다.';
+        } else {
+            errorMsg += error.message;
+        }
+        
+        showError(errorMsg);
     }
 }
 
 function captureImage() {
     try {
         hideError();
+        console.log('사진 촬영 시작...');
+        
+        if (!videoElement.videoWidth || !videoElement.videoHeight) {
+            throw new Error('비디오가 준비되지 않았습니다. 잠시 후 다시 시도해주세요.');
+        }
         
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
@@ -813,9 +846,12 @@ function captureImage() {
         canvas.width = videoElement.videoWidth;
         canvas.height = videoElement.videoHeight;
         
+        console.log('캔버스 크기:', canvas.width, 'x', canvas.height);
+        
         context.drawImage(videoElement, 0, 0);
         
         capturedImageData = canvas.toDataURL('image/jpeg', 0.8);
+        console.log('이미지 캡처 완료, 크기:', capturedImageData.length, 'characters');
         
         capturedImage.src = capturedImageData;
         capturedImage.style.display = 'block';
@@ -828,11 +864,14 @@ function captureImage() {
         // 카메라 스트림 정지
         if (stream) {
             stream.getTracks().forEach(track => track.stop());
+            console.log('카메라 스트림 정지됨');
         }
+        
+        console.log('촬영 완료 - 분석 버튼 활성화됨');
         
     } catch (error) {
         console.error('이미지 캡처 오류:', error);
-        showError('이미지 캡처 중 오류가 발생했습니다.');
+        showError(`이미지 캡처 중 오류가 발생했습니다: ${error.message}`);
     }
 }
 
@@ -917,12 +956,17 @@ ${productListString}
 }
 
 function displayResults(analysisResult) {
+    console.log('결과 표시 시작:', analysisResult);
     showLoading(false);
+    
+    // 결과 섹션 먼저 숨김
+    resultsSection.style.display = 'none';
+    noResults.style.display = 'none';
     
     if (analysisResult.includes('3M 제품을 찾을 수 없습니다') || 
         analysisResult.includes('분석 결과: 3M 제품을 찾을 수 없습니다')) {
+        console.log('제품을 찾을 수 없음 - noResults 표시');
         noResults.style.display = 'block';
-        resultsSection.style.display = 'none';
         return;
     }
     

@@ -737,8 +737,10 @@ const M3_PRODUCTS = [
 
 // DOM 요소들
 let cameraInput = null;
+let fileInput = null;
 let capturedImage = null;
 let takePhotoBtn = null;
+let uploadFileBtn = null;
 let analyzeBtn = null;
 let resetBtn = null;
 let loading = null;
@@ -757,8 +759,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function initializeElements() {
     cameraInput = document.getElementById('cameraInput');
+    fileInput = document.getElementById('fileInput');
     capturedImage = document.getElementById('capturedImage');
     takePhotoBtn = document.getElementById('takePhotoBtn');
+    uploadFileBtn = document.getElementById('uploadFileBtn');
     analyzeBtn = document.getElementById('analyzeBtn');
     resetBtn = document.getElementById('resetBtn');
     loading = document.querySelector('.loading');
@@ -770,7 +774,9 @@ function initializeElements() {
 
 function setupEventListeners() {
     takePhotoBtn.addEventListener('click', takePhoto);
+    uploadFileBtn.addEventListener('click', uploadFile);
     cameraInput.addEventListener('change', handlePhotoCapture);
+    fileInput.addEventListener('change', handlePhotoCapture);
     analyzeBtn.addEventListener('click', analyzeImage);
     resetBtn.addEventListener('click', resetApp);
 }
@@ -781,15 +787,22 @@ function takePhoto() {
     cameraInput.click(); // 핸드폰 카메라 앱 실행
 }
 
+function uploadFile() {
+    console.log('파일 선택 창 실행...');
+    hideError();
+    fileInput.click(); // 갤러리 파일 선택 창 실행
+}
+
 function handlePhotoCapture(event) {
     const file = event.target.files[0];
+    const inputSource = event.target.id === 'cameraInput' ? '카메라 촬영' : '파일 업로드';
     
     if (!file) {
-        console.log('사진 촬영 취소됨');
+        console.log(`${inputSource} 취소됨`);
         return;
     }
     
-    console.log('사진 선택됨:', file.name, file.size, 'bytes');
+    console.log(`${inputSource}으로 이미지 선택됨:`, file.name, file.size, 'bytes');
     
     const reader = new FileReader();
     
@@ -1094,6 +1107,7 @@ function resetApp() {
     
     // 파일 input 초기화
     cameraInput.value = '';
+    fileInput.value = '';
     
     // 데이터 초기화
     capturedImageData = null;

@@ -192,6 +192,26 @@
             margin-top: 20px;
         }
 
+        .upload-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        @media (min-width: 480px) {
+            .upload-buttons {
+                flex-direction: row;
+                justify-content: center;
+            }
+            
+            .upload-buttons .camera-button {
+                max-width: 200px;
+                margin: 0 10px;
+            }
+        }
+
         .instructions {
             background: #e3f2fd;
             padding: 20px;
@@ -253,7 +273,11 @@
             <div class="instructions">
                 <h3>사용 방법 (2단계)</h3>
                 <ul>
-                    <li><strong>1단계:</strong> "사진 촬영" 버튼 클릭 → 핸드폰 카메라 앱 실행 → 3M 제품 촬영</li>
+                    <li><strong>1단계:</strong> 이미지 선택</li>
+                    <ul style="margin-top: 5px;">
+                        <li>"카메라로 촬영" → 카메라 앱 실행하여 새로 촬영</li>
+                        <li>"파일에서 선택" → 갤러리에서 기존 사진 선택</li>
+                    </ul>
                     <li><strong>2단계:</strong> "제품 분석하기" 버튼 클릭 → AI가 제품을 분석하고 결과 표시</li>
                     <li><strong>참고:</strong> Post-it, 스카치테이프, 3M 브랜드 제품들을 찾아드립니다</li>
                 </ul>
@@ -263,17 +287,24 @@
                 <img id="capturedImage" class="captured-image" style="display: none;" />
                 
                 <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display: none;">
+                <input type="file" id="fileInput" accept="image/*" style="display: none;">
                 
-                <button id="takePhotoBtn" class="camera-button">
-                    사진 촬영 (카메라 실행)
-                </button>
+                <div class="upload-buttons">
+                    <button id="takePhotoBtn" class="camera-button">
+                        카메라로 촬영
+                    </button>
+                    
+                    <button id="uploadFileBtn" class="camera-button">
+                        파일에서 선택
+                    </button>
+                </div>
                 
                 <button id="analyzeBtn" class="camera-button" style="display: none;">
                     제품 분석하기
                 </button>
                 
                 <button id="resetBtn" class="camera-button reset-button" style="display: none;">
-                    다시 촬영하기
+                    다시 선택하기
                 </button>
             </div>
 

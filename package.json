@@ -1,0 +1,25 @@
+{
+  "name": "3m-product-analyzer",
+  "version": "1.0.0",
+  "description": "모바일 카메라를 통한 3M 제품 분석 웹앱",
+  "main": "index.html",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo 'Static site - no build needed'",
+    "start": "vercel dev"
+  },
+  "keywords": [
+    "3M",
+    "product-analysis",
+    "camera",
+    "mobile-web",
+    "openai",
+    "vision-api"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {},
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

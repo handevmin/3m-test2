@@ -806,14 +806,30 @@ function handlePhotoCapture(event) {
     
     console.log(`${inputSource}으로 이미지 선택됨:`, file.name, file.size, 'bytes');
     
-    // 파일 크기가 너무 큰 경우 압축 필요 알림
-    if (file.size > 3 * 1024 * 1024) { // 3MB 이상
-        console.log('큰 이미지 감지 - 압축 진행');
-        showLoadingWithMessage('이미지를 최적화하는 중입니다...');
-    }
+    // 원본 이미지를 그대로 사용 (압축하지 않음)
+    const reader = new FileReader();
     
-    // 이미지 압축 및 리사이즈
-    compressAndResizeImage(file, inputSource);
+    reader.onload = function(e) {
+        capturedImageData = e.target.result;
+        console.log('원본 이미지 로드 완료, 크기:', capturedImageData.length, 'characters');
+        
+        // 촬영된 이미지 미리보기 표시
+        capturedImage.src = capturedImageData;
+        capturedImage.style.display = 'block';
+        
+        // UI 업데이트: 분석 버튼 활성화
+        analyzeBtn.style.display = 'inline-block';
+        resetBtn.style.display = 'inline-block';
+        
+        console.log(`${inputSource} 완료 - 분석 버튼 활성화됨 (원본 이미지)`);
+    };
+    
+    reader.onerror = function(error) {
+        console.error('이미지 로드 오류:', error);
+        showError('이미지를 불러오는데 실패했습니다.');
+    };
+    
+    reader.readAsDataURL(file);
 }
 
 function compressAndResizeImage(file, inputSource) {
@@ -919,7 +935,7 @@ async function analyzeImage() {
         hideError();
         showLoading(true);
         
-        console.log('분석 시작 - API 호출 준비 중...');
+        console.log('분석 시작 - 원본 이미지로 먼저 시도');
         console.log('전송할 이미지 크기:', capturedImageData.length, 'characters');
         console.log('이미지 타입:', capturedImageData.substring(0, 50));
         
@@ -927,6 +943,7 @@ async function analyzeImage() {
         
         const prompt = createAnalysisPrompt();
         
+        // 1단계: 원본 이미지로 먼저 시도
         const response = await fetch(API_URL, {
             method: 'POST',
             headers: {
@@ -939,6 +956,16 @@ async function analyzeImage() {
         });
 
         console.log('API 응답 상태:', response.status);
+
+        // 413 오류 (파일 너무 큼)인 경우 압축해서 재시도
+        if (response.status === 413) {
+            console.log('413 오류 감지 - 이미지를 압축하여 재시도합니다');
+            showLoadingWithMessage('이미지가 너무 큽니다. 압축하여 재시도하는 중...');
+            
+            // 원본 이미지를 압축해서 재시도
+            await retryWithCompressedImage(prompt);
+            return;
+        }
 
         if (!response.ok) {
             const errorText = await response.text();
@@ -954,7 +981,7 @@ async function analyzeImage() {
             throw new Error(data.error || '분석 중 오류가 발생했습니다.');
         }
         
-        console.log('분석 결과:', data.result);
+        console.log('분석 결과 (원본):', data.result);
         displayResults(data.result);
         
     } catch (error) {
@@ -962,6 +989,111 @@ async function analyzeImage() {
         showError(`이미지 분석 중 오류가 발생했습니다: ${error.message}`);
     } finally {
         showLoading(false);
+    }
+}
+
+async function retryWithCompressedImage(prompt) {
+    try {
+        console.log('압축 재시도 시작 - 원본 이미지를 압축합니다');
+        
+        // 원본 이미지를 Image 객체로 로드
+        const img = new Image();
+        
+        return new Promise((resolve, reject) => {
+            img.onload = async function() {
+                try {
+                    console.log(`원본 이미지 크기: ${img.width}x${img.height}`);
+                    
+                    // 최대 크기 설정 (GPT 분석에 충분한 해상도)
+                    const maxWidth = 1920;
+                    const maxHeight = 1920;
+                    const maxFileSize = 3 * 1024 * 1024; // 3MB
+                    
+                    let { width, height } = calculateNewDimensions(img.width, img.height, maxWidth, maxHeight);
+                    
+                    console.log(`리사이즈된 크기: ${width}x${height}`);
+                    
+                    // Canvas로 이미지 리사이즈 및 압축
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = width;
+                    canvas.height = height;
+                    
+                    // 고품질 리샘플링
+                    ctx.imageSmoothingEnabled = true;
+                    ctx.imageSmoothingQuality = 'high';
+                    
+                    // 이미지 그리기
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    // 적절한 압축 품질 찾기
+                    let quality = 0.8;
+                    let compressedData;
+                    
+                    do {
+                        compressedData = canvas.toDataURL('image/jpeg', quality);
+                        console.log(`압축 품질 ${quality}: ${compressedData.length} characters`);
+                        
+                        if (compressedData.length < maxFileSize * 1.37) { // base64는 약 37% 더 큼
+                            break;
+                        }
+                        
+                        quality -= 0.1;
+                    } while (quality > 0.3);
+                    
+                    console.log(`압축 완료 - 품질: ${quality}, 최종 크기: ${compressedData.length} characters`);
+                    
+                    // 압축된 이미지로 API 재호출
+                    showLoadingWithMessage('압축된 이미지로 3M 제품을 분석하는 중...');
+                    
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            imageData: compressedData,
+                            prompt: prompt
+                        })
+                    });
+                    
+                    console.log('압축 재시도 API 응답 상태:', response.status);
+                    
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error('압축 재시도 API 오류 응답:', errorText);
+                        throw new Error(`압축 재시도 실패: ${response.status} - ${errorText}`);
+                    }
+                    
+                    const data = await response.json();
+                    console.log('압축 재시도 API 응답 데이터:', data);
+                    
+                    if (!data.success) {
+                        console.error('압축 재시도 분석 실패:', data.error);
+                        throw new Error(data.error || '압축 후 분석 중 오류가 발생했습니다.');
+                    }
+                    
+                    console.log('압축 재시도 분석 결과:', data.result);
+                    displayResults(data.result);
+                    resolve();
+                    
+                } catch (error) {
+                    console.error('압축 재시도 중 오류:', error);
+                    reject(error);
+                }
+            };
+            
+            img.onerror = function(error) {
+                console.error('이미지 로드 실패:', error);
+                reject(new Error('이미지 압축을 위한 로드에 실패했습니다.'));
+            };
+            
+            img.src = capturedImageData;
+        });
+        
+    } catch (error) {
+        console.error('압축 재시도 오류:', error);
+        throw error;
     }
 }
 

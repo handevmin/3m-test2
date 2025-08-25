@@ -34,6 +34,8 @@ module.exports = async function handler(req, res) {
 
         const base64Image = imageData.split(',')[1];
 
+        console.log('OpenAI API 호출 시작');
+        
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: {
@@ -41,7 +43,7 @@ module.exports = async function handler(req, res) {
                 'Authorization': `Bearer ${OPENAI_API_KEY}`
             },
             body: JSON.stringify({
-                model: 'gpt-4.1-mini',
+                model: 'gpt-4o',
                 messages: [{
                     role: 'user',
                     content: [
@@ -62,6 +64,8 @@ module.exports = async function handler(req, res) {
                 temperature: 0.1
             })
         });
+        
+        console.log('OpenAI API 응답 상태:', response.status);
 
         if (!response.ok) {
             const errorData = await response.text();

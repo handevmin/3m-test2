@@ -846,6 +846,8 @@ async function analyzeImage() {
         hideError();
         showLoading(true);
         
+        console.log('분석 시작 - API 호출 준비 중...');
+        
         const prompt = createAnalysisPrompt();
         
         const response = await fetch(API_URL, {
@@ -859,21 +861,28 @@ async function analyzeImage() {
             })
         });
 
+        console.log('API 응답 상태:', response.status);
+
         if (!response.ok) {
-            throw new Error(`API 호출 실패: ${response.status}`);
+            const errorText = await response.text();
+            console.error('API 오류 응답:', errorText);
+            throw new Error(`API 호출 실패: ${response.status} - ${errorText}`);
         }
 
         const data = await response.json();
+        console.log('API 응답 데이터:', data);
         
         if (!data.success) {
+            console.error('분석 실패:', data.error);
             throw new Error(data.error || '분석 중 오류가 발생했습니다.');
         }
         
+        console.log('분석 결과:', data.result);
         displayResults(data.result);
         
     } catch (error) {
         console.error('이미지 분석 오류:', error);
-        showError('이미지 분석 중 오류가 발생했습니다. 네트워크 연결을 확인하고 다시 시도해주세요.');
+        showError(`이미지 분석 중 오류가 발생했습니다: ${error.message}`);
     } finally {
         showLoading(false);
     }
